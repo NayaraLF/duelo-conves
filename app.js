@@ -88,9 +88,9 @@ function showScreen(id) {
 
    Regras:
    – Final sempre 1v1
-   – N ímpar (> 3): 1 trio no round mais cedo possível
-   – N = 3 chegando à final: 1 duo + 1 bye (evita trio na final)
-   – Nunca trio na final
+   – N ímpar: 1 trio que avança 2 vencedores
+   – Trio nunca na final
+   – Os 2 vencedores do trio se enfrentam na fase seguinte
 ══════════════════════════════════════════════ */
 function generateStructure(n) {
   const rounds = [];
@@ -99,23 +99,18 @@ function generateStructure(n) {
   while (cur > 1) {
     const matches = [];
 
-    if (cur === 3) {
-      matches.push({ type: 'duo', participants: [], winner: null });
-      matches.push({ type: 'bye', participants: [], winner: null });
-      rounds.push(matches);
-      cur = 2;
-    } else if (cur % 2 === 0) {
+    if (cur % 2 === 0) {
       for (let i = 0; i < cur / 2; i++)
         matches.push({ type: 'duo', participants: [], winner: null });
       rounds.push(matches);
       cur = cur / 2;
     } else {
-      // ímpar > 3: 1 trio + duos
+      // Ímpar: 1 trio (3 MCs → 2 avançam) + duos
       matches.push({ type: 'trio', participants: [], winner: null });
       for (let i = 0; i < (cur - 3) / 2; i++)
         matches.push({ type: 'duo', participants: [], winner: null });
       rounds.push(matches);
-      cur = (cur - 1) / 2;
+      cur = 2 + (cur - 3) / 2;  // = (cur + 1) / 2
     }
   }
   return rounds;
@@ -139,11 +134,25 @@ function fillRound(matches, mcs) {
 }
 
 function getRoundWinners(roundIdx) {
-  return state.structure[roundIdx].map(m => m.winner).filter(Boolean);
+  const winners = [];
+  state.structure[roundIdx].forEach(m => {
+    if (m.type === 'trio') {
+      // Trio avança 2 vencedores
+      (m.trioSelected || []).forEach(name => winners.push(name));
+    } else if (m.winner) {
+      winners.push(m.winner);
+    }
+  });
+  return winners;
+}
+
+function isMatchComplete(m) {
+  if (m.type === 'trio') return (m.trioSelected || []).length === 2;
+  return m.winner !== null;
 }
 
 function isRoundComplete() {
-  return state.structure[state.currentRound].every(m => m.winner !== null);
+  return state.structure[state.currentRound].every(isMatchComplete);
 }
 
 
@@ -282,13 +291,8 @@ function refreshP1Status() {
     const wMatch = state.structure[0][p1.matchIdx];
     if (wMatch.type === 'trio') {
       const n = (wMatch.trioSelected || []).length;
-      if (n < 2) {
-        label.textContent = `BATALHA ${p1.matchIdx + 1} · TRIO — ESCOLHA ${n}/2 VENCEDORES`;
-        hint.textContent  = n === 0 ? 'Toque em 2 vencedores no card abaixo' : 'Toque no 2º vencedor no card abaixo';
-      } else {
-        label.textContent = `BATALHA ${p1.matchIdx + 1} · TRIO — DESEMPATE ↓`;
-        hint.textContent  = 'Escolha o vencedor do desempate no card abaixo';
-      }
+      label.textContent = `BATALHA ${p1.matchIdx + 1} · TRIO — ESCOLHA ${n}/2 VENCEDORES`;
+      hint.textContent  = n === 0 ? 'Toque em 2 vencedores no card abaixo' : 'Toque no 2º vencedor no card abaixo';
     } else {
       label.textContent = `BATALHA ${p1.matchIdx + 1} DE ${total} — ESCOLHA O VENCEDOR ↓`;
       hint.textContent  = 'Toque no nome do vencedor no card abaixo';
@@ -405,17 +409,13 @@ function buildBattle() {
 /* ── Interação unificada para duo e trio ── */
 function handleMatchInteraction(match, name, role) {
   if (match.type === 'trio') {
-    if (role === 'trio-select') {
-      const sel = match.trioSelected;
-      const idx = sel.indexOf(name);
-      if (idx >= 0) {
-        sel.splice(idx, 1);
-        match.winner = null; // desfaz o desempate se havia
-      } else if (sel.length < 2) {
-        sel.push(name);
-      }
-    } else if (role === 'trio-sub' && match.trioSelected.length === 2) {
-      match.winner = match.winner === name ? null : name;
+    // Trio: selecionar 2 dos 3 participantes como vencedores
+    const sel = match.trioSelected;
+    const idx = sel.indexOf(name);
+    if (idx >= 0) {
+      sel.splice(idx, 1);
+    } else if (sel.length < 2) {
+      sel.push(name);
     }
   } else {
     match.winner = match.winner === name ? null : name;
@@ -425,13 +425,14 @@ function handleMatchInteraction(match, name, role) {
 /* ── HTML compartilhado para participantes do card ── */
 function buildParticipantsHTML(match, matchIdx, attrKey) {
   const isTrio = match.type === 'trio';
-  const isDone = match.winner !== null;
   const sel    = match.trioSelected || [];
+  const trioDone = isTrio && sel.length === 2;
 
   if (!isTrio) {
+    const isDone = match.winner !== null;
     return match.participants.map((name, i) => {
       const isW = match.winner === name;
-      const isL = match.winner !== null && !isW;
+      const isL = isDone && !isW;
       let cls = 'battle-participant';
       if (isW) cls += ' winner';
       if (isL) cls += ' loser';
@@ -445,15 +446,14 @@ function buildParticipantsHTML(match, matchIdx, attrKey) {
     }).join('');
   }
 
-  /* ─ Trio: seção superior (3 MCs) ─ */
-  const twoSel = sel.length === 2;
-  const top = match.participants.map((name, i) => {
+  /* ─ Trio: 3 MCs, selecionar 2 vencedores ─ */
+  return match.participants.map((name, i) => {
     const isAdv = sel.includes(name);
-    const isOut = twoSel && !isAdv;
+    const isOut = trioDone && !isAdv;
     let cls = 'battle-participant';
-    if (isAdv) cls += ' trio-adv';
-    if (isOut) cls += ' trio-out';
-    const canTap = !isDone && (!twoSel || isAdv);
+    if (isAdv) cls += ' winner';
+    if (isOut) cls += ' loser';
+    const canTap = !trioDone || isAdv;
     const attrs  = canTap
       ? `data-${attrKey}="${matchIdx}" data-name="${escHtml(name)}" data-role="trio-select"`
       : '';
@@ -462,46 +462,20 @@ function buildParticipantsHTML(match, matchIdx, attrKey) {
       : '';
     return `${vs}
       <div class="${cls}" ${attrs}>
-        ${isAdv ? '<span class="trio-adv-badge">↑</span>' : ''}
+        ${isAdv ? '<span class="trio-adv-badge">✓</span>' : ''}
         <span class="p-name">${escHtml(name)}</span>
       </div>`;
   }).join('');
-
-  /* ─ Trio: seção de desempate (aparece quando 2 selecionados) ─ */
-  let sub = '';
-  if (sel.length === 2) {
-    const subParts = sel.map((name, i) => {
-      const isW = match.winner === name;
-      const isL = match.winner !== null && !isW;
-      let cls = 'battle-participant';
-      if (isW) cls += ' winner';
-      if (isL) cls += ' loser';
-      const attrs = isDone
-        ? ''
-        : `data-${attrKey}="${matchIdx}" data-name="${escHtml(name)}" data-role="trio-sub"`;
-      const vs = i > 0
-        ? `<div class="battle-vs"><div class="battle-vs-bar"></div><span class="battle-vs-text">VS</span><div class="battle-vs-bar"></div></div>`
-        : '';
-      return `${vs}
-        <div class="${cls}" ${attrs}>
-          <span class="p-name">${escHtml(name)}</span><span class="p-check">✓</span>
-        </div>`;
-    }).join('');
-    sub = `<div class="trio-sub-section">
-      <div class="trio-sub-label">⚡ DESEMPATE — ESCOLHA O VENCEDOR</div>
-      ${subParts}
-    </div>`;
-  }
-
-  return top + sub;
 }
 
 function getCardLabel(match) {
-  if (match.winner !== null)          return '· CONCLUÍDA ✅';
-  if (match.type !== 'trio')          return '· ESCOLHA O VENCEDOR';
-  const n = (match.trioSelected || []).length;
-  if (n < 2)                          return `· ESCOLHA 2 VENCEDORES (${n}/2)`;
-  return '· DESEMPATE';
+  if (match.type === 'trio') {
+    const n = (match.trioSelected || []).length;
+    if (n === 2) return '· CONCLUÍDA ✅';
+    return `· ESCOLHA 2 VENCEDORES (${n}/2)`;
+  }
+  if (match.winner !== null) return '· CONCLUÍDA ✅';
+  return '· ESCOLHA O VENCEDOR';
 }
 
 
@@ -889,23 +863,31 @@ function drawBracketCanvas() {
     const midX = (xR + xL) / 2;
 
     rounds[r].forEach((m, mIdx) => {
-      if (!m.winner) return;
+      // Determina os vencedores desta partida
+      let matchWinners = [];
+      if (m.type === 'trio') {
+        matchWinners = m.trioSelected || [];
+      } else if (m.winner) {
+        matchWinners = [m.winner];
+      }
+      if (matchWinners.length === 0) return;
 
-      // Encontra o duelo no próximo round que contém este vencedor
-      const destIdx = rounds[r + 1].findIndex(nm =>
-        nm.participants.includes(m.winner)
-      );
-      if (destIdx === -1) return;
+      matchWinners.forEach(winnerName => {
+        const destIdx = rounds[r + 1].findIndex(nm =>
+          nm.participants.includes(winnerName)
+        );
+        if (destIdx === -1) return;
 
-      const fromY = pos[r][mIdx]?.c ?? 0;
-      const toY   = pos[r + 1][destIdx]?.c ?? 0;
+        const fromY = pos[r][mIdx]?.c ?? 0;
+        const toY   = pos[r + 1][destIdx]?.c ?? 0;
 
-      ctx.strokeStyle = 'rgba(160,0,0,0.55)';
-      ctx.lineWidth   = 1.8;
-      ctx.beginPath();
-      ctx.moveTo(xR, fromY);
-      ctx.bezierCurveTo(midX, fromY, midX, toY, xL, toY);
-      ctx.stroke();
+        ctx.strokeStyle = 'rgba(160,0,0,0.55)';
+        ctx.lineWidth   = 1.8;
+        ctx.beginPath();
+        ctx.moveTo(xR, fromY);
+        ctx.bezierCurveTo(midX, fromY, midX, toY, xL, toY);
+        ctx.stroke();
+      });
     });
   }
 
@@ -936,15 +918,14 @@ function drawBracketCanvas() {
 
 /* ── Renderiza as barras de um duelo ── */
 function drawBars(ctx, match, x, topY, bw, bh, pg, isFinal, rndRect) {
-  /* Também desenha a seção de desempate do trio, se houver */
   const isTrio = match.type === 'trio';
   const sel    = match.trioSelected || [];
 
-  /* Barras dos participantes principais */
+  /* Barras dos participantes */
   match.participants.forEach((name, i) => {
     const y   = topY + i * (bh + pg);
     const isW = isTrio
-      ? sel.includes(name)        // no trio: vencedor = quem avançou ao desempate
+      ? sel.includes(name)
       : match.winner === name;
     const isL = isTrio
       ? (sel.length === 2 && !sel.includes(name))
@@ -952,7 +933,7 @@ function drawBars(ctx, match, x, topY, bw, bh, pg, isFinal, rndRect) {
 
     /* Fill */
     ctx.fillStyle = isW
-      ? (isTrio ? 'rgba(245,166,35,0.18)' : (isFinal ? '#a07000' : '#4a3000'))
+      ? (isFinal ? '#a07000' : '#4a3000')
       : isL ? '#0c0c12'
       : '#5e0010';
     rndRect(x, y, bw, bh, 4); ctx.fill();
@@ -975,7 +956,7 @@ function drawBars(ctx, match, x, topY, bw, bh, pg, isFinal, rndRect) {
       disp = disp.slice(0, -1);
     if (disp.length < name.toUpperCase().length) disp += '...';
 
-    if (isW && !isTrio) {
+    if (isW) {
       ctx.fillStyle = isFinal ? '#f5a623' : '#c89000';
       ctx.font      = '700 12px Arial, sans-serif';
       ctx.fillText(isFinal ? '*' : '>', x + 8, y + bh / 2);
@@ -986,52 +967,6 @@ function drawBars(ctx, match, x, topY, bw, bh, pg, isFinal, rndRect) {
       ctx.fillText(disp, x + 10, y + bh / 2);
     }
   });
-
-  /* Seção de desempate do trio */
-  if (isTrio && sel.length === 2 && match.winner) {
-    const subTopY = topY + match.participants.length * (bh + pg) + 8;
-
-    /* Rótulo do desempate */
-    ctx.textAlign    = 'left';
-    ctx.textBaseline = 'middle';
-    ctx.font         = '600 10px Arial, sans-serif';
-    ctx.fillStyle    = '#f5a623';
-    ctx.fillText('DESEMPATE', x, subTopY - 2);
-
-    sel.forEach((name, i) => {
-      const y   = subTopY + 10 + i * (bh + pg);
-      const isW = match.winner === name;
-      const isL = !isW;
-
-      ctx.fillStyle = isW ? (isFinal ? '#a07000' : '#4a3000') : '#0c0c12';
-      rndRect(x, y, bw, bh, 4); ctx.fill();
-
-      ctx.strokeStyle = isW ? '#f5a623' : '#18181f';
-      ctx.lineWidth   = isW ? 2 : 1;
-      rndRect(x, y, bw, bh, 4); ctx.stroke();
-
-      ctx.fillStyle    = isW ? '#ffd060' : '#2a2a38';
-      ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-      ctx.font         = `${isW ? '700' : '600'} 14px Arial, sans-serif`;
-
-      let disp = name.toUpperCase();
-      const maxW = bw - (isW ? 36 : 18);
-      while (ctx.measureText(disp).width > maxW && disp.length > 2)
-        disp = disp.slice(0, -1);
-      if (disp.length < name.toUpperCase().length) disp += '...';
-
-      if (isW) {
-        ctx.fillStyle = isFinal ? '#f5a623' : '#c89000';
-        ctx.font      = '700 12px Arial, sans-serif';
-        ctx.fillText(isFinal ? '*' : '>', x + 8, y + bh / 2);
-        ctx.fillStyle = '#ffd060';
-        ctx.font      = '700 14px Arial, sans-serif';
-        ctx.fillText(disp, x + 22, y + bh / 2);
-      } else {
-        ctx.fillText(disp, x + 10, y + bh / 2);
-      }
-    });
-  }
 }
 
 
@@ -1068,7 +1003,7 @@ function setupEvents() {
 
     handleMatchInteraction(match, el.dataset.name, el.dataset.role);
 
-    if (match.winner) {
+    if (isMatchComplete(match)) {
       p1.waitWinner = false;
       saveState();
       refreshP1Card(matchIdx);
