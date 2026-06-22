@@ -1,174 +1,165 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    />
-    <title>Battle APP</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Semi+Condensed:wght@400;600;700;900&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <!-- ═══════════════ TELA 1 — Cadastro de MCs ═══════════════ -->
-    <div id="screen-input" class="screen">
-      <header class="s-header">
-        <div class="brand">
-          <span class="brand-mic">🎤</span>
-          <div class="brand-text">
-            <h1>BATTLE APP</h1>
-            <span class="brand-sub">VERSÃO BATALHA DO CONVÉS</span>
-          </div>
-        </div>
-      </header>
-      <main class="s-body">
-        <div class="add-row">
-          <input
-            id="mc-input"
-            type="text"
-            placeholder="Nome do MC…"
-            maxlength="30"
-            autocomplete="off"
-            autocorrect="off"
-            autocapitalize="words"
-            spellcheck="false"
-          />
-          <button id="btn-add" class="btn-add" aria-label="Adicionar">+</button>
-        </div>
-        <div id="mc-counter" class="mc-counter">0 / 22 MCs adicionados</div>
-        <ul id="mc-list" class="mc-list">
-          <li class="list-empty">Adicione os MCs acima ☝️</li>
-        </ul>
-      </main>
-      <footer class="s-footer">
-        <button id="btn-generate" class="btn-primary" disabled>
-          GERAR CHAVEAMENTO &nbsp;→
-        </button>
-      </footer>
-    </div>
 
-    <!-- ═══════════════ TELA 2 — Fase 1: Sorteio Ao Vivo ═══════════════ -->
-    <div id="screen-setup" class="screen">
-      <header class="s-header">
-        <button id="btn-back" class="btn-back">← Voltar</button>
-        <h2 class="s-title">FASE 1 — SORTEIO AO VIVO</h2>
-        <p id="setup-hint" class="s-hint">
-          Toque nos números para sortear as batalhas
-        </p>
-      </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Battle APP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Semi+Condensed:wght@400;600;700;900&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
 
-      <main class="s-body" id="setup-body">
-        <!-- Referência numérica (recolhível) -->
-        <div class="ref-section">
-          <button id="btn-toggle-ref" class="btn-toggle-ref">
-            📋 Lista de MCs &amp; números &nbsp;<span class="ref-arrow">▾</span>
-          </button>
-          <div id="ref-panel" class="ref-panel">
-            <div id="ref-grid" class="ref-grid"></div>
-          </div>
-        </div>
-
-        <!-- Status + Grade de números (sticky) -->
-        <div class="p1-sticky-zone">
-          <!-- Status da batalha atual -->
-          <div id="p1-status" class="p1-status">
-            <div id="p1-status-label" class="p1-status-label">—</div>
-            <div class="p1-status-row">
-              <div id="p1-slots" class="p1-slots"></div>
-              <button id="btn-undo" class="btn-undo" disabled>↩ Anular</button>
-            </div>
-          </div>
-
-          <!-- Grade de números -->
-          <div id="numbers-grid" class="numbers-grid"></div>
-        </div>
-        <!-- /p1-sticky-zone -->
-
-        <!-- Cards das batalhas da Fase 1 -->
-        <div id="p1-cards" class="p1-cards"></div>
-      </main>
-
-      <footer class="s-footer">
-        <button id="btn-to-phase2" class="btn-primary" disabled>
-          SORTEAR PRÓXIMA FASE &nbsp;🎲
-        </button>
-      </footer>
-    </div>
-
-    <!-- ═══════════════ TELA 3 — Torneio (Fase 2+) ═══════════════ -->
-    <div id="screen-tournament" class="screen">
-      <header class="s-header">
-        <div class="round-row">
-          <span id="round-label" class="round-label">FASE 2</span>
-          <div id="round-dots" class="round-dots"></div>
-        </div>
-        <p id="round-hint" class="s-hint">Toque no vencedor de cada batalha</p>
-      </header>
-      <main id="tournament-body" class="s-body"></main>
-      <footer class="s-footer">
-        <button id="btn-advance" class="btn-primary" disabled>
-          SORTEAR PRÓXIMA FASE &nbsp;🎲
-        </button>
-      </footer>
-    </div>
-
-    <!-- ═══════════════ TELA 4 — Campeão ═══════════════ -->
-    <div id="screen-champion" class="screen">
-      <main class="champion-main">
-        <div class="champ-glow"></div>
-        <div class="champ-ring">
-          <span class="champ-crown">👑</span>
-        </div>
-        <p class="champ-label">C A M P E Ã O</p>
-        <h2 id="champ-name" class="champ-name"></h2>
-        <p class="champ-trophy">🏆 Vencedor da Batalha 🏆</p>
-      </main>
-      <footer class="s-footer champ-footer">
-        <button id="btn-show-bracket" class="btn-bracket">
-          📊 VER CHAVEAMENTO
-        </button>
-        <button id="btn-new" class="btn-primary btn-outline">
-          ↩ &nbsp;NOVA BATALHA
-        </button>
-      </footer>
-    </div>
-
-    <!-- ═══════════════ MODAL — Chaveamento Visual ═══════════════ -->
-    <div id="bracket-modal" class="bracket-modal" aria-hidden="true">
-      <div class="bracket-inner">
-        <div class="bracket-top">
-          <span class="bracket-top-title">CHAVEAMENTO</span>
-          <button id="btn-close-bracket" class="bracket-close">✕</button>
-        </div>
-        <div class="bracket-scroll">
-          <canvas id="bracket-canvas"></canvas>
-        </div>
-        <div class="bracket-footer">
-          <button id="btn-dl-bracket" class="btn-primary">
-            ⬇ BAIXAR IMAGEM
-          </button>
+<body>
+  <!-- ═══════════════ TELA 1 — Cadastro de MCs ═══════════════ -->
+  <div id="screen-input" class="screen">
+    <header class="s-header">
+      <div class="brand">
+        <span class="brand-mic">🎤</span>
+        <div class="brand-text">
+          <h1>BATTLE APP</h1>
+          <span class="brand-sub">VERSÃO BATALHA DO CONVÉS</span>
         </div>
       </div>
-    </div>
+    </header>
+    <main class="s-body">
+      <div class="add-row">
+        <input id="mc-input" type="text" placeholder="Nome do MC…" maxlength="30" autocomplete="off" autocorrect="off"
+          autocapitalize="words" spellcheck="false" />
+        <button id="btn-add" class="btn-add" aria-label="Adicionar">+</button>
+      </div>
+      <div id="mc-counter" class="mc-counter">0 / 22 MCs adicionados</div>
+      <ul id="mc-list" class="mc-list">
+        <li class="list-empty">Adicione os MCs acima ☝️</li>
+      </ul>
+    </main>
+    <footer class="s-footer">
+      <button id="btn-generate" class="btn-primary" disabled>
+        GERAR CHAVEAMENTO &nbsp;→
+      </button>
+    </footer>
+  </div>
 
-    <!-- ═══════════════ OVERLAY — Animação de Sorteio ═══════════════ -->
-    <div id="draw-overlay" class="draw-overlay" aria-hidden="true">
-      <div class="draw-box">
-        <p class="draw-title">🎲 SORTEIO</p>
-        <div id="draw-spinning" class="draw-spinning">—</div>
-        <p id="draw-status" class="draw-status">Sorteando batalhas…</p>
+  <!-- ═══════════════ TELA 2 — Fase 1: Sorteio Ao Vivo ═══════════════ -->
+  <div id="screen-setup" class="screen">
+    <header class="s-header">
+      <button id="btn-back" class="btn-back">← Voltar</button>
+      <h2 class="s-title">FASE 1 — SORTEIO AO VIVO</h2>
+      <p id="setup-hint" class="s-hint">
+        Toque nos números para sortear as batalhas
+      </p>
+    </header>
+
+    <main class="s-body" id="setup-body">
+      <!-- Referência numérica (recolhível) -->
+      <div class="ref-section">
+        <button id="btn-toggle-ref" class="btn-toggle-ref">
+          📋 Lista de MCs &amp; números &nbsp;<span class="ref-arrow">▾</span>
+        </button>
+        <div id="ref-panel" class="ref-panel">
+          <div id="ref-grid" class="ref-grid"></div>
+        </div>
+      </div>
+
+      <!-- Status + Grade de números (sticky) -->
+      <div class="p1-sticky-zone">
+        <!-- Status da batalha atual -->
+        <div id="p1-status" class="p1-status">
+          <div id="p1-status-label" class="p1-status-label">—</div>
+          <div class="p1-status-row">
+            <div id="p1-slots" class="p1-slots"></div>
+            <button id="btn-undo" class="btn-undo" disabled>↩ Anular</button>
+          </div>
+        </div>
+
+        <!-- Grade de números -->
+        <div id="numbers-grid" class="numbers-grid"></div>
+      </div>
+      <!-- /p1-sticky-zone -->
+
+      <!-- Cards das batalhas da Fase 1 -->
+      <div id="p1-cards" class="p1-cards"></div>
+    </main>
+
+    <footer class="s-footer">
+      <button id="btn-to-phase2" class="btn-primary" disabled>
+        SORTEAR PRÓXIMA FASE &nbsp;🎲
+      </button>
+    </footer>
+  </div>
+
+  <!-- ═══════════════ TELA 3 — Torneio (Fase 2+) ═══════════════ -->
+  <div id="screen-tournament" class="screen">
+    <header class="s-header">
+      <div class="round-row">
+        <span id="round-label" class="round-label">FASE 2</span>
+        <div id="round-dots" class="round-dots"></div>
+      </div>
+      <p id="round-hint" class="s-hint">Toque no vencedor de cada batalha</p>
+    </header>
+    <main id="tournament-body" class="s-body"></main>
+    <footer class="s-footer">
+      <button id="btn-advance" class="btn-primary" disabled>
+        SORTEAR PRÓXIMA FASE &nbsp;🎲
+      </button>
+    </footer>
+  </div>
+
+  <!-- ═══════════════ TELA 4 — Campeão ═══════════════ -->
+  <div id="screen-champion" class="screen">
+    <main class="champion-main">
+      <div class="champ-glow"></div>
+      <div class="champ-ring">
+        <span class="champ-crown">👑</span>
+      </div>
+      <p class="champ-label">C A M P E Ã O</p>
+      <h2 id="champ-name" class="champ-name"></h2>
+      <p class="champ-trophy">🏆 Vencedor da Batalha 🏆</p>
+    </main>
+    <footer class="s-footer champ-footer">
+      <button id="btn-show-bracket" class="btn-bracket">
+        📊 VER CHAVEAMENTO
+      </button>
+      <button id="btn-new" class="btn-primary btn-outline">
+        ↩ &nbsp;NOVA BATALHA
+      </button>
+    </footer>
+  </div>
+
+  <!-- ═══════════════ MODAL — Chaveamento Visual ═══════════════ -->
+  <div id="bracket-modal" class="bracket-modal" aria-hidden="true">
+    <div class="bracket-inner">
+      <div class="bracket-top">
+        <span class="bracket-top-title">CHAVEAMENTO</span>
+        <button id="btn-close-bracket" class="bracket-close">✕</button>
+      </div>
+      <div class="bracket-scroll">
+        <canvas id="bracket-canvas"></canvas>
+      </div>
+      <div class="bracket-footer">
+        <button id="btn-dl-bracket" class="btn-primary">
+          ⬇ BAIXAR IMAGEM
+        </button>
       </div>
     </div>
+  </div>
 
-    <!-- ═══════════════ TOAST ═══════════════ -->
-    <div id="toast" class="toast" role="alert" aria-live="polite"></div>
+  <!-- ═══════════════ OVERLAY — Animação de Sorteio ═══════════════ -->
+  <div id="draw-overlay" class="draw-overlay" aria-hidden="true">
+    <div class="draw-box">
+      <p class="draw-title">🎲 SORTEIO</p>
+      <div id="draw-spinning" class="draw-spinning">—</div>
+      <p id="draw-status" class="draw-status">Sorteando batalhas…</p>
+    </div>
+  </div>
 
-    <script src="app.js"></script>
-  </body>
+  <!-- ═══════════════ TOAST ═══════════════ -->
+  <div id="toast" class="toast" role="alert" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+
 </html>

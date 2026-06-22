@@ -27,6 +27,32 @@ const $   = id  => document.getElementById(id);
 const qs  = sel => document.querySelector(sel);
 const qsa = sel => document.querySelectorAll(sel);
 
+const STORAGE_KEY = 'battleapp_state';
+
+function saveState() {
+  try {
+    const data = {
+      state: { mcs: state.mcs, structure: state.structure, currentRound: state.currentRound },
+      p1:    { numberedMCs: p1.numberedMCs, matchIdx: p1.matchIdx, drawn: p1.drawn,
+               waitWinner: p1.waitWinner, done: p1.done, refOpen: p1.refOpen },
+      activeScreen: document.querySelector('.screen.active')?.id || 'screen-input',
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch (_) { /* quota exceeded – silently ignore */ }
+}
+
+function clearSavedState() {
+  localStorage.removeItem(STORAGE_KEY);
+}
+
+function loadSavedState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (_) { return null; }
+}
+
 function escHtml(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;')
@@ -159,11 +185,13 @@ function addMC() {
   state.mcs.push(name);
   inp.value = '';
   inp.focus();
+  saveState();
   renderInputUI();
 }
 
 function removeMC(idx) {
   state.mcs.splice(idx, 1);
+  saveState();
   renderInputUI();
 }
 
@@ -172,6 +200,7 @@ function onGenerate() {
   state.structure    = generateStructure(state.mcs.length);
   state.currentRound = 0;
   initPhase1();
+  saveState();
   renderPhase1Screen();
   showScreen('screen-setup');
 }
@@ -332,6 +361,7 @@ function onNumberTap(num) {
   if (!mc || p1.drawn.some(d => d.num === num)) return;
 
   p1.drawn.push(mc);
+  saveState();
 
   const match = state.structure[0][p1.matchIdx];
   if (p1.drawn.length >= getRequired(match)) {
@@ -345,6 +375,7 @@ function onNumberTap(num) {
 function undoLastDraw() {
   if (p1.drawn.length === 0 || p1.waitWinner || p1.done) return;
   p1.drawn.pop();
+  saveState();
   refreshP1Status();
   refreshNumbersGrid();
 }
@@ -356,12 +387,14 @@ function buildBattle() {
 
   if (match.type === 'bye') {
     match.winner = match.participants[0];
+    saveState();
     appendByeCard(p1.matchIdx);
     advanceP1();
   } else {
     match.winner  = null;
     if (match.type === 'trio') match.trioSelected = [];
     p1.waitWinner = true;
+    saveState();
     appendBattleCard(p1.matchIdx);   // card ativo
     refreshP1Status();
     refreshNumbersGrid();
@@ -532,10 +565,12 @@ function advanceP1() {
   p1.matchIdx++;
   p1.drawn      = [];
   p1.waitWinner = false;
+  saveState();
 
   if (p1.matchIdx >= state.structure[0].length) {
     // Fase 1 completa
     p1.done = true;
+    saveState();
     refreshP1Status();
     refreshNumbersGrid();
     const btn = $('btn-to-phase2');
@@ -562,7 +597,8 @@ async function onToPhase2() {
   await drawAnimation(winners);
 
   state.currentRound = 1;
-  fillRound(state.structure[1], shuffle(winners));
+  fillRound(state.structure[1], winners);
+  saveState();
 
   renderTournamentScreen();
   showScreen('screen-tournament');
@@ -641,6 +677,7 @@ function onTournamentParticipantTap(el) {
   if (match.type === 'bye') return;
 
   handleMatchInteraction(match, name, role);
+  saveState();
 
   // Re-renderiza só o card afetado
   const old = $(`tcard-${mIdx}`);
@@ -677,7 +714,8 @@ async function onAdvance() {
   await drawAnimation(winners);
 
   state.currentRound++;
-  fillRound(state.structure[state.currentRound], shuffle(winners));
+  fillRound(state.structure[state.currentRound], winners);
+  saveState();
   renderTournamentScreen();
 }
 
@@ -708,6 +746,7 @@ function resetAll() {
   state.currentRound = 0;
   p1.numberedMCs = []; p1.matchIdx = 0; p1.drawn = [];
   p1.waitWinner  = false; p1.done = false; p1.refOpen = false;
+  clearSavedState();
   renderInputUI();
   showScreen('screen-input');
 }
@@ -1031,12 +1070,14 @@ function setupEvents() {
 
     if (match.winner) {
       p1.waitWinner = false;
+      saveState();
       refreshP1Card(matchIdx);
       advanceP1();
       return;
     }
     refreshP1Card(matchIdx);
     refreshP1Status();
+    saveState();
   });
 
   $('btn-to-phase2').addEventListener('click', onToPhase2);
@@ -1060,10 +1101,99 @@ function setupEvents() {
 
 
 /* ══════════════════════════════════════════════
+   RESTAURAR ESTADO SALVO
+══════════════════════════════════════════════ */
+function restoreFromSaved(saved) {
+  // Restaura state
+  state.mcs          = saved.state.mcs;
+  state.structure    = saved.state.structure;
+  state.currentRound = saved.state.currentRound;
+
+  // Restaura p1
+  p1.numberedMCs = saved.p1.numberedMCs;
+  p1.matchIdx    = saved.p1.matchIdx;
+  p1.drawn       = saved.p1.drawn;
+  p1.waitWinner  = saved.p1.waitWinner;
+  p1.done        = saved.p1.done;
+  p1.refOpen     = saved.p1.refOpen;
+
+  const screen = saved.activeScreen;
+
+  if (screen === 'screen-input') {
+    renderInputUI();
+    showScreen('screen-input');
+
+  } else if (screen === 'screen-setup') {
+    // Re-renderiza Fase 1 completamente
+    renderRefGrid();
+    $('ref-panel').classList.toggle('open', p1.refOpen);
+    $('btn-toggle-ref').classList.toggle('open', p1.refOpen);
+    qs('.ref-arrow').textContent = p1.refOpen ? '▴' : '▾';
+    refreshP1Status();
+    refreshNumbersGrid();
+
+    // Re-cria os cards das batalhas já formadas
+    $('p1-cards').innerHTML = '';
+    for (let i = 0; i < p1.matchIdx; i++) {
+      const m = state.structure[0][i];
+      if (m.type === 'bye') {
+        appendByeCard(i);
+      } else {
+        appendBattleCard(i);
+      }
+    }
+    // Se estava esperando vencedor, mostra o card ativo
+    if (p1.waitWinner && p1.matchIdx < state.structure[0].length) {
+      appendBattleCard(p1.matchIdx);
+    }
+
+    // Atualiza botão de próxima fase
+    const btn = $('btn-to-phase2');
+    if (p1.done) {
+      btn.disabled    = false;
+      btn.textContent = state.structure.length === 1
+        ? '👑 REVELAR CAMPEÃO'
+        : 'SORTEAR PRÓXIMA FASE  🎲';
+    } else {
+      btn.disabled    = true;
+      btn.textContent = 'SORTEAR PRÓXIMA FASE  🎲';
+    }
+
+    showScreen('screen-setup');
+
+  } else if (screen === 'screen-tournament') {
+    renderTournamentScreen();
+    showScreen('screen-tournament');
+
+  } else if (screen === 'screen-champion') {
+    const lastRound = state.structure[state.structure.length - 1];
+    const champ     = lastRound?.[0]?.winner;
+    if (champ) {
+      $('champ-name').textContent = champ;
+      showScreen('screen-champion');
+    } else {
+      // Fallback: se algo deu errado, volta à tela inicial
+      renderInputUI();
+      showScreen('screen-input');
+    }
+  } else {
+    renderInputUI();
+    showScreen('screen-input');
+  }
+}
+
+
+/* ══════════════════════════════════════════════
    INIT
 ══════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   setupEvents();
-  renderInputUI();
-  showScreen('screen-input');
+
+  const saved = loadSavedState();
+  if (saved && saved.state && saved.state.structure && saved.state.structure.length > 0) {
+    restoreFromSaved(saved);
+  } else {
+    renderInputUI();
+    showScreen('screen-input');
+  }
 });
