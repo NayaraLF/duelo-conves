@@ -238,7 +238,9 @@ function renderPhase1Screen() {
 
 /* ── Referência numerada ── */
 function renderRefGrid() {
-  $('ref-grid').innerHTML = p1.numberedMCs.map(({ num, name }) => `
+  // Mostra apenas os MCs disponíveis (não usados, não sorteados)
+  const visible = p1.numberedMCs.filter(mc => mc.num > 0);
+  $('ref-grid').innerHTML = visible.map(({ num, name }) => `
     <div class="ref-item">
       <span class="ref-num">${num}</span>
       <span class="ref-name">${escHtml(name)}</span>
@@ -315,52 +317,62 @@ function refreshP1Status() {
 }
 
 /* ── Grade de números ── */
-function getUsedNums() {
+function getUsedNames() {
   const used = new Set();
   state.structure[0].forEach((m, idx) => {
     if (idx < p1.matchIdx) {
-      m.participants.forEach(name => {
-        const mc = p1.numberedMCs.find(x => x.name === name);
-        if (mc) used.add(mc.num);
-      });
+      m.participants.forEach(name => used.add(name));
     }
   });
   return used;
 }
 
-function refreshNumbersGrid() {
-  const usedNums  = getUsedNums();
-  const drawnNums = new Set(p1.drawn.map(d => d.num));
-
-  $('numbers-grid').innerHTML = p1.numberedMCs.map(({ num }) => {
-    if (usedNums.has(num))
-      return `<button class="num-btn used" disabled data-num="${num}">${num}</button>`;
-    if (drawnNums.has(num)) {
-      const mc = p1.numberedMCs.find(m => m.num === num);
-      return `<button class="num-btn drawn" disabled data-num="${num}">
-        <span class="nb-num">${num}</span>
-        <span class="nb-name">${escHtml(mc?.name ?? '')}</span>
-      </button>`;
+/* Renumera os MCs disponíveis (não usados e não sorteados na batalha atual) de 1 em diante */
+function renumberAvailable() {
+  const usedNames = getUsedNames();
+  const drawnNames = new Set(p1.drawn.map(d => d.name));
+  let counter = 1;
+  p1.numberedMCs = p1.numberedMCs.map(mc => {
+    if (usedNames.has(mc.name) || drawnNames.has(mc.name)) {
+      return { ...mc, num: -1 }; // marca como indisponível
     }
-    if (p1.waitWinner || p1.done)
-      return `<button class="num-btn available wait" disabled data-num="${num}">${num}</button>`;
-    return `<button class="num-btn available" data-num="${num}">${num}</button>`;
-  }).join('');
+    return { ...mc, num: counter++ };
+  });
+}
+
+function refreshNumbersGrid() {
+  // Mostra apenas os MCs disponíveis (num > 0)
+  const available = p1.numberedMCs.filter(mc => mc.num > 0);
+
+  if (p1.waitWinner || p1.done) {
+    $('numbers-grid').innerHTML = available.map(({ num }) =>
+      `<button class="num-btn available wait" disabled data-num="${num}">${num}</button>`
+    ).join('');
+    return;
+  }
+
+  $('numbers-grid').innerHTML = available.map(({ num }) =>
+    `<button class="num-btn available" data-num="${num}">${num}</button>`
+  ).join('');
 }
 
 /* ── Sorteio de números ── */
 function onNumberTap(num) {
   if (p1.waitWinner || p1.done) return;
   const mc = p1.numberedMCs.find(m => m.num === num);
-  if (!mc || p1.drawn.some(d => d.num === num)) return;
+  if (!mc || mc.num <= 0) return;
 
-  p1.drawn.push(mc);
+  p1.drawn.push({ num: mc.num, name: mc.name });
+
+  // Renumera os restantes de 1 em diante
+  renumberAvailable();
   saveState();
 
   const match = state.structure[0][p1.matchIdx];
   if (p1.drawn.length >= getRequired(match)) {
     buildBattle();
   } else {
+    renderRefGrid();
     refreshP1Status();
     refreshNumbersGrid();
   }
@@ -369,7 +381,12 @@ function onNumberTap(num) {
 function undoLastDraw() {
   if (p1.drawn.length === 0 || p1.waitWinner || p1.done) return;
   p1.drawn.pop();
+
+  // Renumera de novo incluindo o MC devolvido
+  renumberAvailable();
   saveState();
+
+  renderRefGrid();
   refreshP1Status();
   refreshNumbersGrid();
 }
@@ -559,12 +576,16 @@ function advanceP1() {
   p1.matchIdx++;
   p1.drawn      = [];
   p1.waitWinner = false;
+
+  // Renumera os MCs restantes de 1 em diante
+  renumberAvailable();
   saveState();
 
   if (p1.matchIdx >= state.structure[0].length) {
     // Fase 1 completa
     p1.done = true;
     saveState();
+    renderRefGrid();
     refreshP1Status();
     refreshNumbersGrid();
     const btn = $('btn-to-phase2');
@@ -575,6 +596,7 @@ function advanceP1() {
     return;
   }
 
+  renderRefGrid();
   refreshP1Status();
   refreshNumbersGrid();
 }
